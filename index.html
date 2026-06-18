@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Diário do Cliente SRH</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.1/dist/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <div class="logo">BPO</div>
+      <div class="title">
+        <h1>Diário do Cliente</h1>
+        <p>Folha de Pagamento</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" id="home_view">
+    <div class="actions" style="margin-top: 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+      <h2 style="margin: 0; white-space: nowrap;">Empresas Salvas</h2>
+      <input type="text" id="search_empresa" placeholder="🔍 Pesquisar por Nome, CNPJ ou Analista..." style="flex-grow: 1; max-width: 400px; margin: 0;" onkeyup="filtrarEmpresas()" />
+      <button type="button" class="btn-primary" style="margin: 0; white-space: nowrap;" onclick="novaParticularidade()">+ Adicionar Particularidade</button>
+    </div>
+    <div id="lista_empresas" class="grid-3" style="margin-top: 24px;">
+      <!-- Populated by JS -->
+    </div>
+  </main>
+
+  <main class="container" id="form_view" style="display: none;">
+    <div style="margin-bottom: 20px;">
+      <button type="button" class="btn-outline" onclick="voltarHome()">← Voltar</button>
+    </div>
+    <form id="form">
+      <section class="card">
+        <h2>1. Identificação</h2>
+        <div class="grid-2">
+          <label>Nome social
+            <input name="nome_social" type="text" placeholder="Empresa X" />
+          </label>
+          <label>CNPJ/CPF Matriz
+            <input name="cnpj_matriz" id="cnpj_matriz" type="text" placeholder="00.000.000/0001-00 ou 000.000.000-00" />
+            <small id="cnpj_hint" class="muted"></small>
+          </label>
+        </div>
+        <details open>
+          <summary>Dados da Matriz</summary>
+          <div class="grid-2">
+            <label>Razão social (Matriz)
+              <input name="razao_social_matriz" type="text" />
+            </label>
+            <label>CNAE Fiscal (Matriz)
+              <input name="cnae_matriz" type="text" />
+            </label>
+          </div>
+          <div class="grid-2">
+            <label>Natureza do Estabelecimento
+              <input name="natureza_matriz" type="text" />
+            </label>
+            <label>Data de Encerramento (se houver)
+              <input name="data_encerramento_matriz" type="date" />
+            </label>
+          </div>
+        </details>
+
+        <h3>Filiais</h3>
+        <p class="muted">Adicione quantas filiais forem necessárias.</p>
+        <div id="filiais" class="repeat-block"></div>
+        <button type="button" class="btn-outline" onclick="addFilial()">+ Adicionar filial</button>
+      </section>
+
+      <section class="card">
+        <h2>2. Composições e Regimes</h2>
+        <div class="grid-3">
+          <label>Optante pelo Simples Nacional?
+            <select name="simples_nacional"><option value="">Selecione</option><option>Sim</option><option>Não</option></select>
+          </label>
+          <label>Regime do IR (Caixa/Competência)
+            <select name="regime_ir"><option value="">Selecione</option><option>Caixa</option><option>Competência</option></select>
+          </label>
+          <label>Tipo de Recolhimento do FGTS
+            <select name="fgts_tipo">
+              <option value="">Selecione</option>
+              <option>Matriz e Filial</option>
+              <option>Centralizado na Matriz</option>
+              <option>Múltiplas Empresas</option>
+            </select>
+          </label>
+        </div>
+        <label>Observação FPAS (SENAI/SESI)
+          <input name="observacao_fpas" type="text" placeholder="Quando FPAS 507 e >500 funcionários..." />
+        </label>
+        <div class="note">
+          <strong>ATENÇÃO:</strong> As empresas (Matriz e filiais) que possuem o código FPAS 507 e totalizem mais de 500 funcionários, deverá ser observado se enquadra no recolhimento do <strong>ADICIONAL DO SENAI/SESI</strong>. Em caso de dúvida submeter uma pesquisa à área jurídica.
+        </div>
+
+        <div class="grid-2">
+          <label>Desoneração na Folha?
+            <select name="desoneracao"><option value="">Selecione</option><option>Sim</option><option>Não</option></select>
+          </label>
+          <label>Tipo (Fixo ou Percentual)
+            <input name="desoneracao_tipo" type="text" />
+          </label>
+        </div>
+        <div class="grid-2">
+          <label>Compensação Previdenciária
+            <input name="compensacao_previdenciaria" type="text" />
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>3. Sindicatos</h2>
+        <p class="muted">Inclua todos os sindicatos e preencha as regras específicas (3.4, 3.5, 3.6 e 3.7) <strong>dentro de cada sindicato</strong>.</p>
+        <div id="sindicatos" class="repeat-block"></div>
+        <button type="button" class="btn-outline" onclick="addSindicato()">+ Adicionar sindicato</button>
+      </section>
+
+      <section class="card">
+        <h2>4. Feriados por Municípios</h2>
+        <textarea name="feriados_municipios" rows="3" placeholder="Liste os feriados municipais considerados pelo cliente..."></textarea>
+
+        <h3>Provisões de Férias e 13º</h3>
+        <fieldset>
+          <legend>Forma de processamento</legend>
+          <label class="chk"><input type="radio" name="provisoes_tipo" value="automatico_chip"> Cálculo automático pelo CHIP</label>
+          <label class="chk"><input type="radio" name="provisoes_tipo" value="manual_envio"> Cálculo manual e envio para o cliente</label>
+        </fieldset>
+        <label>Observações (opcional)
+          <input name="provisoes" type="text" placeholder="Detalhes adicionais sobre provisões" />
+        </label>
+
+        <div class="mt-8">
+          <label>Participa do Programa de Alimentação do Trabalhador (PAT)?
+            <select name="pat"><option>SIM</option><option>NÃO</option></select>
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>6. Políticas e Regras</h2>
+        <label>Numeração matrícula / id
+          <input name="numeracao_matricula" type="text" />
+        </label>
+        <div class="grid-2">
+          <label>Na Admissão
+            <textarea name="politica_admissao" rows="2"></textarea>
+          </label>
+          <label>Na Transferência
+            <textarea name="politica_transferencia" rows="2"></textarea>
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>7. Adiantamento Quinzenal</h2>
+        <div class="grid-3">
+          <label>Todas as empresas possuem adiantamento?
+            <select name="adiant_todas_empresas"><option>Sim</option><option>Não</option></select>
+          </label>
+          <label>Percentual aplicado
+            <input name="adiant_percentual" type="text" placeholder="40%" />
+          </label>
+          <label>Dias mínimos trabalhados
+            <input name="adiant_dias_min" type="number" />
+          </label>
+        </div>
+        <div class="grid-3">
+          <label>Férias (proporcionaliza?)
+            <input name="adiant_ferias_prop" type="text" />
+          </label>
+          <label>Admitidos (mês de admissão?)
+            <input name="adiant_admitidos" type="text" />
+          </label>
+          <label>Estagiários recebem?
+            <input name="adiant_estagiarios" type="text" />
+          </label>
+        </div>
+        <div class="grid-3">
+          <label>Descontos adicionais no quinzenal
+            <input name="adiant_descontos" type="text" />
+          </label>
+          <label>Data de pagamento do adiantamento
+            <input name="adiant_data_pagamento" type="text" placeholder="Dia 15" />
+          </label>
+          <label>Se a data não for útil
+            <input name="adiant_data_nao_util" type="text" placeholder="Dia útil anterior" />
+          </label>
+        </div>
+        <div class="grid-2">
+          <label>Pró-Labore/Estatutários recebem?
+            <select name="adiant_pro_labore"><option>Não</option><option>Sim</option></select>
+          </label>
+          <label>Sequencial de processos (se houver)
+            <input name="adiant_sequencial" type="text" />
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>8. Folha de Pagamento</h2>
+        <label>Data de Pagamento
+          <select name="folha_data_pagamento">
+            <option value="">Selecione</option>
+            <option>1º dia útil do mês</option>
+            <option>2º dia útil do mês</option>
+            <option>5º dia útil do mês</option>
+            <option>Penúltimo dia útil do mês</option>
+            <option>Último dia útil do mês</option>
+            <option>Dia Fixo</option>
+            <option>Outros</option>
+          </select>
+        </label>
+        <div class="grid-2">
+          <label>Dia fixo (se aplicável)
+            <input name="folha_dia_fixo" type="text" placeholder="30" />
+          </label>
+          <label>Se o dia não for útil?
+            <input name="folha_nao_util" type="text" placeholder="Dia útil anterior" />
+          </label>
+        </div>
+        <fieldset>
+          <legend>Tipos de mão-de-obra</legend>
+          <div class="checkboxes">
+            <label class="chk"><input type="checkbox" name="tipos_mao_obra" value="CLT"> CLT</label>
+            <label class="chk"><input type="checkbox" name="tipos_mao_obra" value="Estagiário"> Estagiário</label>
+            <label class="chk"><input type="checkbox" name="tipos_mao_obra" value="Menor Aprendiz"> Menor Aprendiz</label>
+            <label class="chk"><input type="checkbox" name="tipos_mao_obra" value="Pró-Labore sem FGTS"> Pró-Labore sem FGTS</label>
+            <label class="chk"><input type="checkbox" name="tipos_mao_obra" value="Pró-Labore com FGTS"> Pró-Labore com FGTS</label>
+            <label class="chk"><input type="checkbox" name="tipos_mao_obra" value="Expatriados"> Expatriados</label>
+            <label class="chk"><input type="checkbox" name="tipos_mao_obra" value="Outros"> Outros</label>
+          </div>
+        </fieldset>
+        <label>Regras específicas (comissão, bônus, etc.)
+          <textarea name="regras_especificas" rows="3"></textarea>
+        </label>
+        <label>Outras particularidades
+          <textarea name="outras_particularidades" rows="2"></textarea>
+        </label>
+        <label>Sequencial de processos (se houver)
+          <input name="folha_sequencial" type="text" />
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>9. Rescisão</h2>
+        <div class="grid-3">
+          <label>Desconta aviso prévio (pedido demissão)?
+            <select name="desc_aviso_pedido_demissao"><option value="">Selecione</option><option>Sim</option><option>Não</option><option>Automático</option></select>
+          </label>
+          <label>Desconto metade dos dias (Art. 480 CLT)
+            <select name="desc_metade_art480"><option value="">Selecione</option><option>Sim</option><option>Não</option><option>Automático</option></select>
+          </label>
+          <label>Cliente informa se haverá desconto?
+            <select name="cliente_informa_desc"><option value="">Selecione</option><option>Sim</option><option>Não</option></select>
+          </label>
+        </div>
+        <label>Sequencial de processos (se houver)
+          <input name="rescisao_sequencial" type="text" />
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>10. 13º Salário</h2>
+        <div class="grid-2">
+          <label>Adiantamento do 13º (data)
+            <input name="dt_adiantamento_data" type="text" placeholder="30 de novembro" />
+          </label>
+          <label>Se a data não for útil
+            <input name="dt_adiantamento_nao_util" type="text" placeholder="Dia útil anterior" />
+          </label>
+        </div>
+        <label>Considera médias no adiantamento?
+          <select name="dt_considera_medias"><option value="">Selecione</option><option>Sim</option><option>Não</option></select>
+        </label>
+        <div class="grid-2">
+          <label>Pagamento do 13º (data)
+            <input name="dt_pagamento_data" type="text" placeholder="20 de dezembro" />
+          </label>
+          <label>Se a data não for útil
+            <input name="dt_pagamento_nao_util" type="text" placeholder="Dia útil anterior" />
+          </label>
+        </div>
+        <label>Sequencial de processos (se houver)
+          <input name="dt_sequencial" type="text" />
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>11. Férias</h2>
+        <fieldset>
+          <legend>Forma de pagamento da 1ª parcela do 13º nas férias</legend>
+          <div class="checkboxes">
+            <label class="chk"><input type="checkbox" name="ferias_forma_13" value="Antecipação entre Fev-Out"> Antecipação entre Fev-Out</label>
+            <label class="chk"><input type="checkbox" name="ferias_forma_13" value="Antecipação entre Fev-Nov"> Antecipação entre Fev-Nov</label>
+            <label class="chk"><input type="checkbox" name="ferias_forma_13" value="Não concede"> Não concede</label>
+            <label class="chk"><input type="checkbox" name="ferias_forma_13" value="Outros"> Outros</label>
+          </div>
+        </fieldset>
+        <div class="grid-3">
+          <label>Percentual p/ adiantamento do 13º
+            <input name="ferias_percentual_13" type="text" />
+          </label>
+          <label>Antecipação de férias (períodos não adquiridos)?
+            <select name="ferias_antecipa"><option value="">Selecione</option><option>Sim</option><option>Não</option></select>
+          </label>
+          <label>Abate faltas injustificadas?
+            <select name="ferias_abate_faltas"><option value="">Selecione</option><option>Sim</option><option>Não</option></select>
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>12. Dados bancários e Empréstimos</h2>
+        <fieldset>
+          <legend>Tipo de pagamento no arquivo bancário</legend>
+          <div class="checkboxes">
+            <label class="chk"><input type="checkbox" name="pagamento_bancario" value="Conta Salário"> Conta Salário</label>
+            <label class="chk"><input type="checkbox" name="pagamento_bancario" value="Conta Corrente"> Conta Corrente</label>
+            <label class="chk"><input type="checkbox" name="pagamento_bancario" value="Poupança"> Poupança</label>
+            <label class="chk"><input type="checkbox" name="pagamento_bancario" value="DOC/TED CC"> DOC/TED CC</label>
+            <label class="chk"><input type="checkbox" name="pagamento_bancario" value="Pensionista"> Pensionista</label>
+            <label class="chk"><input type="checkbox" name="pagamento_bancario" value="Pensionista DOC/TED"> Pensionista DOC/TED</label>
+          </div>
+        </fieldset>
+        <label>Observações / modelo do arquivo bancário
+          <textarea name="modelo_arquivo_obs" rows="3" placeholder="Inclua orientações ou link/print do modelo..."></textarea>
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>13. Tomadores de Serviço</h2>
+        <textarea name="tomadores_servico" rows="3" placeholder="Liste os tomadores..."></textarea>
+      </section>
+
+      <section class="card">
+        <h2>14. Autônomos</h2>
+        <div class="grid-2">
+          <label>Há autônomos?
+            <select name="autonomos_tem"><option value="">Selecione</option><option>Sim</option><option>Não</option></select>
+          </label>
+          <label>Processo mensal do RPA
+            <input name="autonomos_rpa" type="text" />
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>15. Estagiários</h2>
+        <div class="grid-3">
+          <label>Há estagiários?
+            <select name="estag_tem"><option value="">Selecione</option><option>Sim</option><option>Não</option></select>
+          </label>
+          <label>Paga Bolsa Auxílio?
+            <select name="estag_bolsa"><option value="">Selecione</option><option>Sim</option><option>Não</option></select>
+          </label>
+          <label>Recesso conforme lei (30 dias/ano)?
+            <select name="estag_recesso"><option value="">Selecione</option><option>Sim</option><option>Não</option></select>
+          </label>
+        </div>
+        <div class="grid-3">
+          <label>Paga 13º salário?
+            <select name="estag_13"><option value="">Selecione</option><option>Sim</option><option>Não</option></select>
+          </label>
+          <label>Recesso proporcional na rescisão?
+            <select name="estag_recesso_prop"><option value="">Selecione</option><option>Sim</option><option>Não</option></select>
+          </label>
+          <label>Observações
+            <input name="estag_obs" type="text" />
+          </label>
+        </div>
+      </section>
+
+      <section class="card" id="section_gatilhos">
+        <h2>16. Gatilhos de Ocorrências</h2>
+        <p class="muted">Histórico de gatilhos e ocorrências registradas para este cliente.</p>
+        <div id="gatilhos_list">
+          <!-- Populated via JS as a read-only list -->
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>17. Tutoriais</h2>
+        <p class="muted">Adicione links de tutoriais importantes para este cliente.</p>
+        <div id="tutoriais" class="repeat-block"></div>
+        <button type="button" class="btn-outline" onclick="addTutorial()">+ Adicionar tutorial</button>
+      </section>
+
+      <section class="card">
+        <h2>Termo de preenchimento</h2>
+        <div class="grid-2">
+          <label>Local e data
+            <input name="termo_local_data" type="text" placeholder="São Paulo, 12 de setembro de 2025" />
+          </label>
+          <label>Responsável pelo preenchimento
+            <input name="responsavel" type="text" />
+          </label>
+        </div>
+        <div class="grid-2" style="margin-top: 16px;">
+          <label>Analista responsável
+            <input name="analista_responsavel" type="text" />
+          </label>
+          <label>Coordenação
+            <input name="coordenacao" type="text" />
+          </label>
+        </div>
+      </section>
+
+      <section class="actions">
+        <label class="export-format">Formato de exportação:
+          <select id="formato">
+            <option value="pdf">PDF</option>
+            <option value="xlsx">Excel (.xlsx)</option>
+          </select>
+        </label>
+        <div>
+          <button type="button" class="btn-outline" style="margin-right: 12px; margin-top: 0; padding: 14px 24px;" onclick="salvarParticularidade()">Salvar Internamente</button>
+          <button type="button" class="btn-primary" id="btnExportar">Exportar Arquivo</button>
+        </div>
+      </section>
+    </form>
+  </main>
+
+  <main class="container" id="checklist_view" style="display: none;">
+    <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+      <button type="button" class="btn-outline" style="margin-top: 0;" onclick="voltarHome()">← Voltar</button>
+      <div>
+        <button type="button" class="btn-outline" style="margin-top: 0; margin-right: 8px;" id="btn_limpar_checklist" onclick="limparChecklist()" style="display: none;">Desmarcar Todos</button>
+        <button type="button" class="btn-outline" style="margin-top: 0;" id="btn_edit_checklist" onclick="editarChecklist()" style="display: none;">Editar Checklist</button>
+      </div>
+    </div>
+    
+    <form id="form_checklist">
+      <section class="card">
+        <h2 id="checklist_empresa_nome">Checklist</h2>
+        <p class="muted">Digite cada item em uma nova linha para criar os tópicos com checkbox.</p>
+        <input type="hidden" id="checklist_empresa_id" />
+        
+        <label>Sugestão de checklist de conferências
+          <textarea id="chk_sugestao" rows="4" placeholder="Ex: Conferir INSS&#10;Validar Férias..."></textarea>
+        </label>
+        
+        <label>Quais itens analisar com critério maior
+          <textarea id="chk_criterios" rows="4" placeholder="Ex: Horas Extras&#10;Comissões..."></textarea>
+        </label>
+
+        <div style="display:flex; justify-content:flex-end; margin-top: 16px;">
+          <button type="button" class="btn-primary" onclick="salvarChecklist()">Salvar Checklist</button>
+        </div>
+      </section>
+    </form>
+
+    <div id="checklist_cards" style="display: none; margin-top: 12px;">
+      <!-- Populated by JS -->
+    </div>
+  </main>
+
+  <main class="container" id="incidencias_view" style="display: none;">
+    <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+      <button type="button" class="btn-outline" style="margin-top: 0;" onclick="voltarHome()">← Voltar</button>
+      <div>
+        <button type="button" class="btn-outline" style="margin-top: 0; margin-right: 8px;" id="btn_limpar_incidencias" onclick="limparIncidencias()" style="display: none;">Limpar Tudo</button>
+        <button type="button" class="btn-outline" style="margin-top: 0;" id="btn_edit_incidencias" onclick="editarIncidencias()" style="display: none;">Editar Incidências</button>
+      </div>
+    </div>
+    
+    <form id="form_incidencias">
+      <section class="card">
+        <h2 id="incidencias_empresa_nome">Incidências ⚠️</h2>
+        <p class="muted">Registre ocorrências gerais: erros, ajustes, atrasos, divergências, dúvidas, etc.</p>
+        <input type="hidden" id="incidencias_empresa_id" />
+        
+        <div class="grid-2">
+          <label>Data da Ocorrência
+            <input type="date" id="inc_data" />
+          </label>
+          <label>Tipo de Ocorrência
+            <select id="inc_tipo">
+              <option>Erro</option>
+              <option>Ajuste</option>
+              <option>Atraso</option>
+              <option>Divergência</option>
+              <option>Dúvida</option>
+              <option>Outros</option>
+            </select>
+          </label>
+        </div>
+        
+        <label>Descrição da Incidência
+          <textarea id="inc_descricao" rows="3" placeholder="Descreva o que ocorreu..."></textarea>
+        </label>
+        
+        <div style="display:flex; justify-content:flex-end; margin-top: 16px;">
+          <button type="button" class="btn-primary" onclick="adicionarIncidencia()">+ Adicionar Incidência</button>
+        </div>
+      </section>
+    </form>
+
+    <div id="incidencias_cards" style="display: none; margin-top: 12px;">
+      <!-- Populated by JS -->
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <small>© 2026 SRH · Geração local no navegador</small>
+  </footer>
+
+  <!-- MODAL GATILHO -->
+  <div id="modal_gatilho" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 500px; margin: 20px;">
+      <h2 style="margin-top:0; padding-bottom: 8px;">Adicionar Gatilho Rápido</h2>
+      <p class="muted" id="modal_empresa_nome" style="margin-bottom: 20px;"></p>
+      <input type="hidden" id="modal_empresa_id" />
+      <label>Data da Ocorrência
+        <input type="date" id="modal_g_data" />
+      </label>
+      <label>Tipo/Motivo
+        <input type="text" id="modal_g_motivo" placeholder="Ex: Atraso no envio" />
+      </label>
+      <label>Descrição Detalhada
+        <textarea id="modal_g_descricao" rows="3"></textarea>
+      </label>
+      <div style="display:flex; gap:12px; margin-top:24px; justify-content:flex-end;">
+        <button type="button" class="btn-outline" style="margin:0" onclick="fecharModalGatilho()">Cancelar</button>
+        <button type="button" class="btn-primary" style="padding: 10px 16px;" onclick="salvarModalGatilho()">Salvar Gatilho</button>
+      </div>
+    </div>
+  <div id="checklist_toast" class="checklist-toast">
+    Checklist salvo com sucesso ✔️
+  </div>
+
+  <script src="assets/script.js"></script>
+</body>
+</html>
